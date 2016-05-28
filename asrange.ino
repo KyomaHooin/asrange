@@ -1,141 +1,136 @@
 //////////////////////////////////////////////////////////
-// Program : <dopln nazev programu> by R1ch4rd (c) 2016
+// Program : ASRange by Richard Bruna (c) 2016
 //
-// Popis:    <dopln strucny popis>
-//
+// Description: Customized AirSoft range 
 
 //CONST
 
-//const int LED[6] = {22,24,26,28,30,32};
-//const int TLACITKO[6] = {23,25,27,29,31,33};
-//const int POCET_VSECH_LED = 6; //Pocet vsech LED na PCB.
+const int LED[2] = {8,9}; //LED array
+const int TLACITKO[2] = {4,5}; //Button array
+const int POCET_VSECH_LED = 2; //All LED count. 
 
-const int LED[2] = {8,9};
-const int TLACITKO[2] = {4,5};
-const int POCET_VSECH_LED = 2; //Pocet vsech LED na PCB.
-
-const int BUZZ = 10; //Buzzer na ~PWM pinu.
-const unsigned int FREQ = 1568; //Frekvence pipnuti 31 - 65535 
-const unsigned long DURATION = 500; //Delka pipnuti v milisekundach.
-const int POT = A0; //Odporova draha na analogovem pinu A0.
-const int KALIBRACE = 15; //Kalibrace drahy na "rozstrel" 15 bodu.
-const int KOSTKA = A1; //Generovani "sumu" z volneho analogoveho pinu.
-const int PRODLEVA = 5000; //Prodleva pred startem hry 5s.
-const int PRODLEVA_LED = 3000; //Prodleva pred rozsvicenim LED 3s.
-const int PRODLEVA_MENU = 5000; //Prodleva pred zobrazenim menu 5s.
+const int BUZZ = 10; //Buzzer ~PWM.
+const unsigned int FREQ = 1568; //Beep frequency  31 - 65535 
+const unsigned long DURATION = 500; //Beep duration in millis..
+const int POT = A0; //Voltage divider A0.
+const int KALIBRACE = 15; //Voltage divider calibration.
+const int KOSTKA = A1; //"Noise" generator.
+const int PRODLEVA = 5000; //Game start delay 5s.
+const int PRODLEVA_LED = 3000; //LED light delay 3s.
+const int PRODLEVA_MENU = 5000; //Menu delay 5s.
 
 //VAR
 
-unsigned short START, MENU, HRA, POCET_KOL, POCET_LED; //Nastaveni hry.
-unsigned short tlacitkoStav, ledStav; //Citace stavu.
-unsigned long menuTime, roundTime, tlacitkoTime, ledTime, totalTime, ledStore; //Breakpointy a casovace.
+unsigned short START, MENU, HRA, POCET_KOL, POCET_LED; //Settings.
+unsigned short tlacitkoStav, ledStav; //State couters..
+unsigned long menuTime, roundTime, tlacitkoTime, ledTime, totalTime, ledStore; //Breakpoints and timers.
 
 //SETUP
 
 void setup() {
-  //Nastaveni seriove linky.
+  //Serial setup..
   Serial.begin(9600);
-  //Inicializuji piny LED/tlacitek.
+  //LED/button init.
   for (int i = 0; i <  POCET_VSECH_LED; i++) {
     pinMode(LED[i], OUTPUT);
     digitalWrite(LED[i], LOW);
     pinMode(TLACITKO[i], OUTPUT);
     digitalWrite(TLACITKO[i], HIGH);
   }
-  //Hodim kostkou.
+  //Dice.
   randomSeed(analogRead(KOSTKA));
-  //Nastavim uvodni pocitadlo pro herni menu.
+  //Menu counter setup.
   menuTime = millis();
 }
 
 //MAIN
 
 void loop() {
-  //Pockam pred zahajenim detekce vstupu cele hry.
+  //Deley before game detection.
   if (millis() - menuTime > PRODLEVA_MENU ) {
     while (MENU != 'm') {
-      //Pockam dokud neni co cist ze vstupu.
+      //Have something to read.
       while(!Serial.available());
-      //Nactu vstupni znak.
+      //Read input char.
       MENU = Serial.read();
     }
       Serial.print("ok");
-    //Nastaveni hry.
+    //Game setup.
     nastaveni();
-    //Breakpoint pro prvni kolo.
+    //First round breakpoint.
     roundTime = millis();
-    //Pokud je co hrat.
+    //Have a game to play..
     while(POCET_KOL > 0) {
-      //Pokud dobehlo posledni kolo ukoncim hru.
+      //Last round break.
       if (POCET_KOL == 0) { break; }
-      //KOLO(prodleva).
+      //ROUND(delay).
       if (millis() - roundTime > PRODLEVA) {
-        //Zapnu tlacitka
+        //Enable buttons.
         for (int i = 0; i < POCET_VSECH_LED; i++) { pinMode(TLACITKO[i], INPUT_PULLUP); }
-        //nastavim hraci plochu.
+        //Game board setup.
         if (HRA == 'n') { for (unsigned int i = 0; i < POCET_LED; i++) { nahodna_led(); } } else { nahodna_led(); }
-        //Pipnu pred kazdym kolem.
+        //Beep before each round.
         beep();
-        //Breakpoint pro LED.
+        //LED breakpoint.
         ledTime = millis();
-        //Zacnu hrat.
+        //Begin!
         while(true) {
-          //Kontrola LED.
+          //LED control.
           if (HRA == 'p' && kontrola_zaznamu(ledStav) == 0) { nahodna_led(); ledTime = millis(); }
           if (HRA == 'r' && kontrola_zaznamu(ledStav) == 0 && millis() - tlacitkoTime > PRODLEVA_LED) {
             nahodna_led();
             ledTime = millis();
           }
-          //Kontrola tlacitek.
+          //Button control.
           for (int i = 0; i < POCET_VSECH_LED; i++) { kontrola_tlacitka(i); }
-          //Reset kola.
+          //Round reset.
           if (kontrola_zaznamu(tlacitkoStav) == POCET_LED) {
-            //Vypisu celkovy cas
+            //Write total time.
             HRA == 'n' ? vypis_celkovy_cas_na_vystup(totalTime) : vypis_celkovy_cas_na_vystup(ledStore);
-            //pokud jsem dostal reset vynuluji pocet kol
+            //With reset, zero rounds.
             if (Serial.available()) { if (Serial.read() == 'x') { POCET_KOL = 0; }}
-            //odectu jedno kolo
+            //Round substract.
             if (POCET_KOL > 0) { POCET_KOL--; }
-            //resetuji casovac pro kolo
+            //Reset round counter.
             roundTime = millis();
-            //a ukoncim ho.
+            //Round ends.
             break;
           }
         }
-      //Resetuji stavy a pocitadla.
+      //Reset states and counters.
       tlacitkoStav = ledStav = ledStore = 0;
       }
     }
-  //Vynuluji nastaveni hry.
+  //Zero game setup.
   START = MENU = HRA = POCET_LED = 0;
-  //Resetuji casovac pro menu.
+  //Reset menu timer.
   menuTime = millis();
   }
 }
 
 //FUNKCE
 
-//Kontrola stisknuti tlacitka.
+//Button press control.
 void kontrola_tlacitka(int index) {
-  //Pokud je tlacitko sepnute, jeste sepnute nebylo a LED sviti
+  //Button is pressed, wasn't and LED is up.
   if (digitalRead(TLACITKO[index]) == 0 && !(tlacitkoStav & (1 << index)) && digitalRead(LED[index]) == 1) {
-    //vypnu ledku a zaznamenam vypnuti
+    //Turn LED off and register it. 
     digitalWrite(LED[index], LOW);
     ledStav &= ~(1 << index);
-    //vypnu tlacitko a zaznamenam stisknuti
+    //Turn button off and register it.
     pinMode(TLACITKO[index], OUTPUT);
     digitalWrite(TLACITKO[index], HIGH);
     tlacitkoStav |= (1 << index);
-    //vypisu jak dlouho byla LED zapnuta
+    //Output LED uptime.
     vypis_cas_na_vystup(totalTime = millis() - ledTime, index + 1);
-    //aktualizuji celkovy cas svitu LED
+    //Update total LED uptime.
     ledStore += totalTime;
-    //zaznamenam si kdy jsem naposled stiskl tlacitko
+    //Remeber last button press.
     tlacitkoTime = millis();
   }
 }
 
-//Vystup casovych udaju jednotlivych LED.
+//LED uptime output.
 void vypis_cas_na_vystup(unsigned long cas, int ledka) {
 //  Serial.print("LED [");
 //  Serial.print(ledka);
@@ -145,7 +140,7 @@ void vypis_cas_na_vystup(unsigned long cas, int ledka) {
   Serial.print("T" + String(ledka) + String(cas)); }
 }
 
-//Vystup celkovych casovych udaju.
+//LED total uptime.
 void vypis_celkovy_cas_na_vystup(unsigned long total) {
 //  Serial.println("---------------");
 //  Serial.print("   Celkovy cas: ");
@@ -153,7 +148,7 @@ void vypis_celkovy_cas_na_vystup(unsigned long total) {
   Serial.print("T00" + String(total));
 }
 
-//Spocitej cas.
+//Calculate ouput time.
 //void spocitej_cas(unsigned long timestamp) {
 //  int seconds = timestamp / 1000;
 //  int millisecs = timestamp % 1000;
@@ -165,48 +160,48 @@ void vypis_celkovy_cas_na_vystup(unsigned long total) {
 //  Serial.println(" s");
 //}
 
-//Herni menu.
+//Game menu.
 void nastaveni() {
-  //Dokud uzivatel nezada spravnou hodnotu
+  //Wait for valid input.
   while (HRA != 'n' && HRA != 'p' && HRA != 'r') {
-    //pockam na vstup
+    //Have input buffer,
     while(!Serial.available());
-    //a prectu znak.
+    //read char.
     HRA = Serial.read();
   }
   Serial.print("ok");
-  //Dokud uzivatel nezada spravnou hodnotu
+  //Wait for valid input.
   while (!( 0 < POCET_KOL && POCET_KOL <= 10 )) {
-    //pockam na vstup
+    //Have input buffer,
     while (!(Serial.available()));
-    //a prectu cislo.
+    //read number.
     POCET_KOL = Serial.parseInt();
   }
   Serial.print("ok");
-  //Dokud uzivatel nezada spravnou hodnotu
+  //Wait for valid input.
   while (!( 0 < POCET_LED && POCET_LED <= 12 )) {
-    //pockam na vstup
+    //Have input buffer,
     while (!(Serial.available()));
-    //a prectu cislo.
+    //read number.
     POCET_LED = Serial.parseInt();
   }
   Serial.print("ok");
-  //Dokud uzivatel nezada spravnou hodnotu
+  //Wait for valid input.
   while ( START != 's') {
-    //pockam na vstup
+    //Have input buffer,
     while (!(Serial.available()));
-    //a prectu cislo.
+    //read char.
     START = Serial.read();
   }
   Serial.print("ok");
-  //Nastaveni drahy.
+  //Voltage divider setup.
   Serial.print("D" + String(draha(analogRead(POT))));
 }
 
-//Generovani nahodneho indexu LED.
+//Random LED index generator.
 int nahodny_index() {
   int rnd;
-  //Generuji index dokud nenajdu volnou LED, ktera nesviti.
+  //Find single, power off LED.
   while(true) {
     rnd = random(POCET_VSECH_LED);
     if (!(tlacitkoStav & (1 << rnd)) && digitalRead(LED[rnd]) == 0) { break; }
@@ -214,22 +209,22 @@ int nahodny_index() {
   return rnd;
 }
 
-//Rozsvitim nahodnou volnou LED a udelam zaznam.
+//Power on random LED adn register it.
 void nahodna_led() {
     int t = nahodny_index();
     digitalWrite(LED[t], HIGH);
     ledStav |= (1 << t);
 }
 
-//Kontrola zaznamu vsech tlacitek.
+//Button register control. 
 unsigned int kontrola_zaznamu(unsigned short stav) {
   unsigned int c = 0 ;
-  //Projdu vsechny bity a zaznamenam kolik jich bylo nastaveno.
+  //Count all registered bits.
   for (unsigned int i = 0; i < 16; i++) { if (stav & (1 << i)) { c++; } }
   return c;
 }
 
-//Odporova draha 10 x 1.2k(hardcoded).
+//Voltage divider 10 x 1.2k(hardcoded).
 short draha(short avalue) {
   short range[11] = {0,102,204,306,408,510,612,714,816,918,1023};
   for (int i=0; i < 11; i++) {
