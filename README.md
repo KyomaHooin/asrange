@@ -10,7 +10,7 @@ FILE
 BlueTerm.apk - Android BlueTooth serial terminal APK by "pymasde.es".
 </pre>
 
-CONTACT
+SOURCE
 
-Source: https://github.com/KyomaHooin/asrange
+https://github.com/KyomaHooin/asrange
 
